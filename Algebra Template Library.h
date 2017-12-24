@@ -6,7 +6,7 @@
 
 namespace atl{ 
 	///<summary>
-	///<para> Exception handling :                               </para>
+	///<para> Exception handling :                                            </para>
 	///<para> > Functions throw std::logic_error for invalid arguments        </para>
 	///<para> > Functions prefixed with 'unsafe' do not do any error checking </para>
 	///</summary>
@@ -36,6 +36,7 @@ namespace atl{
 			return out.str();
 		}
 
+		
 		template<typename T> class matrix {
 		public:
 			matrix() {
