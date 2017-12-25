@@ -290,9 +290,6 @@ namespace atl{
 			~f_matrix() {
 
 			}
-		private:
-			template<typename _T, size_t _R, size_t _C> friend class f_matrix;
-			friend class matrix<T>;
 		public:
 			T& at(size_t row, size_t col) {
 				return m_matrix.at(row, col);
@@ -375,6 +372,8 @@ namespace atl{
 			}
 		protected:
 		private:
+			template<typename T, size_t _R, size_t _C> friend class f_matrix;
+			
 			matrix<T> m_matrix;
 		};
 		
