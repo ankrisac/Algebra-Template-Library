@@ -1,60 +1,96 @@
 #pragma once
 
+
 #include<functional>
 #include<sstream>
 #include<vector>
 
+
 namespace atl{ 
-	///<summary>
-	///<para> Exception handling :                                            </para>
-	///<para> > Functions throw std::logic_error for invalid arguments        </para>
-	///<para> > Functions prefixed with 'unsafe' do not do any error checking </para>
-	///</summary>
 	namespace mtl {
 		const std::string excep_generic       = "_ATL_Matrix";
 		const std::string excep_out_of_range  = excep_generic + "_out_of_range";
 		const std::string excep_conflict_size = excep_generic + "_size_conflict";
 
-		inline size_t encode_row_maj(size_t i, size_t j, size_t num_col) {
-			return ((i * num_col) + j);
-		}
-		inline size_t encode_col_maj(size_t i, size_t j, size_t num_row) {
-			return (i + (j * num_row));
-		}
-		template<typename T> 
-		std::string vector_to_string(const std::vector<T> &vec, const std::string sep = ",", 
-									 const std::string begin = "[", const std::string end = "]\n") {
-			size_t size = vec.size();
-			std::stringstream out;
-
-			out << begin;
-			for (size_t i = 0; i < size - 1; i++) {
-				out << vec[i] << sep;
-			}
-			out << vec[size - 1] << end;
-
-			return out.str();
+		inline size_t encode_row_major(size_t row, size_t col, size_t num_col) {
+			return (row * num_col) + col;
 		}
 
-		
 		template<typename T> class matrix {
 		public:
-			matrix() {
-
-			}
-			matrix(const size_t rows, const size_t cols, const T value = T()) {
+			matrix(const size_t rows = 0, const size_t cols = 0, const T value = T()) {
 				resize(rows, cols, value);
 			}
 			~matrix() {
 
 			}
-
+		private:
 			T& unsafe_get(size_t row, size_t col) {
-				return m_elements[encode_row_maj(row, col, m_num_cols)];
+				return m_elements[encode_row_major(row, col, m_num_cols)];
 			}
 			const T& unsafe_get(size_t row, size_t col) const {
-				return m_elements[encode_row_maj(row, col, m_num_cols)];
+				return m_elements[encode_row_major(row, col, m_num_cols)];
 			}
+
+			matrix<T> unsafe_get_row(size_t row) const {
+				matrix<T> out_vec(1, m_num_cols);
+
+				for (size_t i = 0; i < m_num_cols; i++) {
+					out_vec.unsafe_get(0, i) = unsafe_get(row, i);
+				}
+				return out_vec;
+			}
+			matrix<T> unsafe_get_col(size_t col) const {
+				matrix<T> out_vec(m_num_rows, 1);
+
+				for (size_t i = 0; i < m_num_rows; i++) {
+					out_vec.unsafe_get(i, 0) = unsafe_get(i, col);
+				}
+				return out_vec;
+			}
+			void unsafe_set_row(matrix<T> row_vec, size_t row) {
+				for (size_t i = 0; i < m_num_cols; i++) {
+					unsafe_get(row, i) = row_vec.unsafe_get(0, i);
+				}
+			}
+			void unsafe_set_col(matrix<T> col_vec, size_t col) {
+				for (size_t i = 0; i < m_num_rows; i++) {
+					unsafe_get(i, col) = col_vec.unsafe_get(i, 0);
+				}
+			}
+
+			matrix<T>& unsafe_add(const matrix<T> &mat) {
+				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
+					m_elements[i] += mat.m_elements[i];
+				}
+				return *this;
+			}
+			matrix<T>& unsafe_sub(const matrix<T> &mat) {
+				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
+					m_elements[i] -= mat.m_elements[i];
+				}
+				return *this;
+			}
+			matrix<T>& unsafe_mul(const matrix<T> &mat) {
+				size_t col = mat.m_num_cols;
+				std::vector<T> cache(m_num_rows * col);
+				T sum;
+
+				for (size_t i = 0; i < m_num_rows; i++) {
+					for (size_t j = 0; j < col; j++) {
+						for (size_t k = 0; k < m_num_cols; k++) {
+							cache[encode_row_major(i, j, col)] += (unsafe_get(i, k) * mat.unsafe_get(k, j));
+						}
+					}
+				}
+
+				m_elements = cache;
+				m_num_rows = m_num_rows;
+				m_num_cols = col;
+
+				return *this;
+			}
+		public:
 			T& at(size_t row, size_t col) {
 				if (row < m_num_rows && col < m_num_cols) {
 					return unsafe_get(row, col);
@@ -80,37 +116,28 @@ namespace atl{
 			size_t get_num_cols() {
 				return m_num_cols;
 			}
-			std::vector<T> get_row(size_t row) const {
+
+			matrix<T> get_row(size_t row) const {
 				if (row < m_num_rows) {
-					std::vector<T> out_vec(m_num_cols);
-					for (size_t i = 0; i < m_num_cols; i++) {
-						out_vec[i] = unsafe_get(row, i);
-					}
-					return out_vec;
+					return unsafe_get_row(row);
 				}
 				else {
 					throw std::logic_error(excep_out_of_range);
 				}
 			}
-			std::vector<T> get_col(size_t col) const {
+			matrix<T> get_col(size_t col) const {
 				if (col < m_num_cols) {
-					std::vector<T> out_vec(m_num_rows);
-					for (size_t i = 0; i < m_num_rows; i++) {
-						out_vec[i] = unsafe_get(i, col);
-					}
-					return out_vec;
+					return unsafe_get_col(col);
 				}
 				else {
 					throw std::logic_error(excep_out_of_range);
 				}
 			}
 			
-			void set_row(std::vector<T> vec, size_t row) {
+			void set_row(matrix<T> row_vec, size_t row) {
 				if (row < m_num_rows) {
-					if (vec.size() == m_num_cols) {
-						for (size_t i = 0; i < m_num_cols; i++) {
-							unsafe_get(row, i) = vec[i];
-						}
+					if (row_vec.get_num_rows() == 1 && row_vec.get_num_cols() == m_num_cols) {
+						unsafe_set_row(row_vec, row);
 					}
 					else {
 						throw std::logic_error(excep_conflict_size);
@@ -120,12 +147,10 @@ namespace atl{
 					throw std::logic_error(excep_out_of_range);
 				}
 			}
-			void set_col(std::vector<T> vec, size_t col) {
+			void set_col(matrix<T> col_vec, size_t col) {
 				if (col < m_num_cols) {
-					if (vec.size() == m_num_rows) {
-						for (size_t i = 0; i < m_num_rows; i++) {
-							unsafe_get(i, col) = vec[i];
-						}
+					if (col_vec.get_num_rows() == m_num_rows && col_vec.get_num_cols() == 1) {
+						unsafe_set_col(col_vec, col);
 					}
 					else {
 						throw std::logic_error(excep_conflict_size);
@@ -156,37 +181,6 @@ namespace atl{
 				}
 			}
 
-			matrix<T>& unsafe_add(const matrix<T> &mat) {
-				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
-					m_elements[i] += mat.m_elements[i];
-				}
-				return *this;
-			}
-			matrix<T>& unsafe_sub(const matrix<T> &mat) {
-				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
-					m_elements[i] -= mat.m_elements[i];
-				}
-				return *this;
-			}
-			matrix<T>& unsafe_mul(const matrix<T> &mat) {
-				size_t col = mat.m_num_cols;
-				std::vector<T> cache(m_num_rows * col);
-				T sum;
-
-				for (size_t i = 0; i < m_num_rows; i++) {
-					for (size_t j = 0; j < col; j++) {
-						for (size_t k = 0; k < m_num_cols; k++) {
-							cache[encode_row_maj(i, j, col)] += (unsafe_get(i, k) * mat.unsafe_get(k, j));
-						}
-					}
-				}
-
-				m_elements = cache;
-				m_num_rows = m_num_rows;
-				m_num_cols = col;
-
-				return *this;
-			}
 			matrix<T>& operator+=(const matrix<T> &mat) {
 				if (m_num_rows == mat.m_num_rows && m_num_cols == mat.m_num_cols) {
 					unsafe_add(mat);
@@ -250,8 +244,6 @@ namespace atl{
 				m_elements.resize(rows * cols, value);
 				m_elements.shrink_to_fit();
 			}
-
-		protected:
 		private:
 			size_t m_num_rows;
 			size_t m_num_cols;
@@ -298,13 +290,10 @@ namespace atl{
 			~f_matrix() {
 
 			}
-
-			T& unsafe_get(size_t row, size_t col) {
-				return m_matrix.unsafe_get(row, col);
-			}
-			const T& unsafe_get(size_t row, size_t col) const {
-				return m_matrix.unsafe_get(row, col);
-			}
+		private:
+			template<typename _T, size_t _R, size_t _C> friend class f_matrix;
+			friend class matrix<T>;
+		public:
 			T& at(size_t row, size_t col) {
 				return m_matrix.at(row, col);
 			}
@@ -318,23 +307,27 @@ namespace atl{
 				return at(row, col);
 			}
 			
-			std::vector<T> get_row(size_t row) {
-				return m_matrix.get_row(row);
-			}
-			std::vector<T> get_col(size_t col) {
-				return m_matrix.get_col(col);
-			}
-			void set_row(const std::vector<T> &vec, size_t row) {
-				m_matrix.set_row(vec, row);
-			}
-			void set_col(const std::vector<T> &vec, size_t col) {
-				m_matrix.set_col(vec, col);
-			}
-			matrix<T> get_matrix() const {
-				return m_matrix;
-			}
 			explicit operator const matrix<T>() const {
 				return m_matrix;
+			}
+	
+			f_matrix<T, 1, C> get_row(size_t row) {
+				f_matrix<T, 1, C> out_vec;
+				out_vec.m_matrix = m_matrix.get_row(row);
+
+				return out_vec;
+			}
+			f_matrix<T, R, 1> get_col(size_t col) {
+				f_matrix<T, R, 1> out_vec;
+				out_vec.m_matrix = m_matrix.get_col(col);
+
+				return out_vec;
+			}
+			void set_row(const f_matrix<T, 1, C> &row_vec, size_t row) {
+				m_matrix.set_row(static_cast<matrix<T>>(row_vec), row);
+			}
+			void set_col(const f_matrix<T, R, 1> &col_vec, size_t col) {
+				m_matrix.set_col(static_cast<matrix<T>>(col_vec), col);
 			}
 
 			void apply_func(std::function<T(size_t)> func) {
@@ -348,15 +341,15 @@ namespace atl{
 			}
 
 			f_matrix<T, R, C> operator+=(const f_matrix<T, R, C> &mat) {
-				m_matrix.unsafe_add(mat.m_matrix);
+				m_matrix += static_cast<matrix<T>>(mat);
 				return *this;
 			}
 			f_matrix<T, R, C> operator-=(const f_matrix<T, R, C> &mat) {
-				m_matrix.unsafe_sub(mat.m_matrix);
+				m_matrix -= static_cast<matrix<T>>(mat);
 				return *this;
 			}
 			f_matrix<T, R, C> operator*=(const f_matrix<T, C, C> &mat) {
-				m_matrix.unsafe_mul(mat.m_matrix);
+				m_matrix *= static_cast<matrix<T>>(mat);
 				return *this;
 			}
 			f_matrix<T, R, C> operator*=(const T &value) {
@@ -366,7 +359,7 @@ namespace atl{
 			template<size_t CR> 
 			static f_matrix<T, R, C> mult(const f_matrix<T, R, CR> &mat_1, const f_matrix<T, CR, C> &mat_2) {
 				f_matrix<T, R, C> out_mat;
-				out_mat.m_matrix = static_cast<matrix<T>>(mat_1) * mat_2.get_matrix();
+				out_mat.m_matrix = static_cast<matrix<T>>(mat_1) * static_cast<matrix<T>>(mat_2);
 			
 				return out_mat;
 			}
@@ -380,11 +373,8 @@ namespace atl{
 			std::string str(const std::string sep = ",", const std::string begin = "[", const std::string end = "]\n") const {
 				return m_matrix.str();
 			}
-
 		protected:
 		private:
-			friend class f_matrix<T, C, R>;
-
 			matrix<T> m_matrix;
 		};
 		
