@@ -1,13 +1,12 @@
 #pragma once
 
-
 #include<functional>
 #include<sstream>
 #include<vector>
 
 
 namespace atl{ 
-	namespace mtl {
+	namespace mat {
 		const std::string excep_generic       = "_ATL_Matrix";
 		const std::string excep_out_of_range  = excep_generic + "_out_of_range";
 		const std::string excep_conflict_size = excep_generic + "_size_conflict";
@@ -22,7 +21,6 @@ namespace atl{
 				resize(rows, cols, value);
 			}
 			~matrix() {
-
 			}
 		private:
 			T& unsafe_get(size_t row, size_t col) {
@@ -161,22 +159,37 @@ namespace atl{
 				}
 			}
 
-			void apply_func(std::function<T(size_t)> func) {
+			void set(T val) {
+				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
+					m_elements[i] = val;
+				}
+			}
+			void set(std::function<T(size_t)> func) {
 				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
 					m_elements[i] = func(i);
 				}
 			}
-			void apply_func(std::function<T(size_t, size_t)> func) {
+			void set(std::function<T(size_t, size_t)> func) {
 				for (size_t i = 0; i < m_num_rows; i++) {
 					for (size_t j = 0; j < m_num_cols; j++) {
 						unsafe_get(i, j) = func(i, j);
 					}
 				}
 			}
+			void apply_func(std::function<T(T)> func) {
+				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
+					m_elements[i] = func(m_elements);
+				}
+			}
+			void apply_func(std::function<T(size_t, T)> func) {
+				for (size_t i = 0; i < m_num_rows * m_num_cols; i++) {
+					m_elements[i] = func(i, m_elements);
+				}
+			}
 			void apply_func(std::function<T(size_t, size_t, T)> func) {
 				for (size_t i = 0; i < m_num_rows; i++) {
 					for (size_t j = 0; j < m_num_cols; j++) {
-						unsafe_get(i, j) = func(i, j, unsafe_get(i, j));
+						unsafe_get(i, j) = func(i, j, m_elements);
 					}
 				}
 			}
@@ -288,7 +301,6 @@ namespace atl{
 				m_matrix.resize(R, C, value);
 			}
 			~f_matrix() {
-
 			}
 		public:
 			T& at(size_t row, size_t col) {
@@ -327,14 +339,23 @@ namespace atl{
 				m_matrix.set_col(static_cast<matrix<T>>(col_vec), col);
 			}
 
-			void apply_func(std::function<T(size_t)> func) {
+			void set(T val) {
+				m_matrix.set(val);
+			}
+			void set(std::function<T(size_t)> func) {
+				m_matrix.set(func);
+			}
+			void set(std::function<T(size_t, size_t)> func) {
+				m_matrix.set(func);
+			}
+			void apply_func(std::function<T(T)> func) {
 				m_matrix.apply_func(func);
 			}
-			void apply_func(std::function<T(size_t, size_t)> func) {
-				m_matrix.apply_func(func);
+			void apply_func(std::function<T(size_t, T)> func) {
+				m_matrix.apply(func);
 			}
 			void apply_func(std::function<T(size_t, size_t, T)> func) {
-				m_matrix.apply_func(func);
+				m_matrix.apply(func);
 			}
 
 			f_matrix<T, R, C> operator+=(const f_matrix<T, R, C> &mat) {
@@ -373,7 +394,7 @@ namespace atl{
 		protected:
 		private:
 			template<typename T, size_t _R, size_t _C> friend class f_matrix;
-			
+
 			matrix<T> m_matrix;
 		};
 		
